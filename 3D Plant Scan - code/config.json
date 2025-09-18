@@ -1,0 +1,19 @@
+{
+  "scan_label": "test at 32",
+  "angle_per_photo": 90.0,
+  "axes": {
+    "Z": "usb:001,008",
+    "Y": "None",
+    "Oblique": "None"
+  },
+  "cameras": [
+    {
+      "axis": "Z",
+      "port": "usb:001,008"
+    }
+  ],
+  "step_delay": 0.01,
+  "photos_per_camera": 4.0,
+  "total_photos": 4.0,
+  "photo_mode": "sdcard"
+}
