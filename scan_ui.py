@@ -55,8 +55,23 @@ class ScanUI(QWidget):
         super().__init__()
 
         self.setWindowTitle("Camera Scan UI")
-        self.setFixedSize(700, 900)   # lock window size
+        
+                # --- WINDOW SIZE OPTIONS ---
+        # Option 1: Fixed size (locked window size)
+        #self.setFixedSize(700, 900)   # lock window size
+
+        # Option 2: Maximized window
+        self.showMaximized()         # maximize window
+
+        # Option 3: Fullscreen window
+        # self.showFullScreen()        # fullscreen window
+
+        # Option 4: Custom resizable window
+        # self.resize(1000, 800)       # initial size, but user can resize
+
+        # Option 5: Move to top-left corner
         self.move(0, 0)               # top-left corner
+        
 
         self.setWindowFlags(
             Qt.Window |

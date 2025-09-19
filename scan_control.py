@@ -1,10 +1,18 @@
 import logging
 import time
+import json
+import os
+import subprocess
+import sys
 
 from photo_control import PhotoController
 from turntable_control import TurntableController
 
 LOG_FILE = "scan_log.txt"
+CONFIG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'config.json')
+AUTODETECT_SCRIPT = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'cam_autodetect.py')
+AXES = ["Z", "Y", "Oblique"]
+
 logging.basicConfig(
     filename=LOG_FILE,
     level=logging.INFO,
@@ -12,23 +20,90 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+def run_camera_autodetect():
+    try:
+        subprocess.run(["python3", AUTODETECT_SCRIPT], check=True)
+    except Exception as e:
+        logger.error("Error running camera autodetect: %s", str(e))
+
+def load_camera_config():
+    if not os.path.exists(CONFIG_PATH):
+        return AXES, {}
+    with open(CONFIG_PATH) as f:
+        config = json.load(f)
+    axes_config = config.get("axes", {})
+    cameras = [axis for axis in AXES if axes_config.get(axis, "None") != "None"]
+    camera_map = {axis: axes_config.get(axis) for axis in cameras}
+    return cameras, camera_map
+
 class ScanController:
-    def __init__(self, angle_per_photo=10, cameras=None, camera_map=None, delay=0.1):
+    def __init__(self, angle_per_photo=10, cameras=None, camera_map=None, delay=0.1, photo_mode="immediate"):
         self.angle_per_photo = angle_per_photo
         self.num_steps = int(360 / angle_per_photo)
-        self.cameras = cameras or ["Z", "Y", "Oblique"]
-        self.camera_map = camera_map or {}
+        if cameras is None or camera_map is None:
+            cameras, camera_map = load_camera_config()
+        self.cameras = cameras
+        self.camera_map = camera_map
         self.delay = delay
         self.turntable = TurntableController()
-        self.photo = PhotoController(self.cameras, camera_map=self.camera_map)
+        self.photo = PhotoController(self.cameras, camera_map=self.camera_map, mode=photo_mode)
         self._stop = False
-        logger.info("ScanController initialized with %.1f° per photo (%d steps) and cameras: %s.",
-                    angle_per_photo, self.num_steps, self.cameras)
+        logger.info("ScanController initialized with %.1f° per photo (%d steps) and cameras: %s. Photo mode: %s",
+                    angle_per_photo, self.num_steps, self.cameras, photo_mode)
+
+    def refresh_cameras(self):
+        run_camera_autodetect()
+        cameras, camera_map = load_camera_config()
+        self.cameras = cameras
+        self.camera_map = camera_map
+        self.photo = PhotoController(self.cameras, camera_map=self.camera_map)
+        logger.info("Camera assignments refreshed: %s", self.cameras)
+
+    def delete_all_photos_on_cameras(self):
+        # Use the same logic as PhotoController.download_all, but only delete from camera, do not download
+        for axis, port in self.camera_map.items():
+            del_cmd = [
+                "gphoto2",
+                f"--port={port}",
+                "--recurse",
+                "--delete-all-files"
+            ]
+            logger.info("Deleting all files from camera on axis %s (%s) before scan", axis, port)
+            try:
+                del_result = subprocess.run(
+                    del_cmd,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                    check=True
+                )
+                logger.info("Delete output (pre-scan): %s", del_result.stdout)
+                if del_result.stderr:
+                    logger.warning("Delete stderr (pre-scan): %s", del_result.stderr)
+            except Exception as e:
+                logger.error("Failed to delete files from camera on axis %s (pre-scan): %s", axis, str(e))
 
     def perform_scan(self, label="object"):
         self._stop = False
         logger.info("Starting scan for label: %s", label)
-        for step in range(self.num_steps):
+
+        # NEW: Delete all photos from camera before scan starts!
+        self.delete_all_photos_on_cameras()
+
+        # Take initial photo at 0° before any movement
+        initial_angle = 0
+        for axis in self.cameras:
+            try:
+                filename = f"{label}/" \
+                           f"{axis}/camera{self.cameras.index(axis)+1} - {axis} - angle{int(initial_angle):03d}.jpg"
+                self.photo.capture(axis, filename)
+                logger.info("Captured initial photo for axis %s at angle %.1f°", axis, initial_angle)
+            except Exception as e:
+                logger.error("Failed to capture initial photo on axis %s at angle %.1f: %s", axis, initial_angle, str(e))
+        time.sleep(self.delay)
+
+        # Actual scan loop (rotation + photo)
+        for step in range(1, self.num_steps):
             if self._stop:
                 logger.info("Scan stopped by user.")
                 break
@@ -44,7 +119,63 @@ class ScanController:
                 except Exception as e:
                     logger.error("Failed to capture photo on axis %s at angle %.1f: %s", axis, angle, str(e))
             time.sleep(self.delay)
+
         logger.info("Scan complete.")
+        
+        # Always reset turntable to 0° at the end
+        logger.info("Resetting turntable to 0° (starting position).")
+        self.turntable.reset_position()
+        logger.info("Turntable reset complete.")
+
+        # RELEASE THE MOTOR after scan
+        self.turntable.cleanup()
+        logger.info("Stepper motor released after scan.")
+
+        # If in sdcard mode, download all photos from the cameras to the Pi
+        if getattr(self.photo, "mode", "immediate") == "sdcard":
+            logger.info("Downloading all images from camera SD cards.")
+            try:
+                self.photo.download_all(label=label, angle_per_photo=self.angle_per_photo)
+                logger.info("All images downloaded from SD cards.")
+            except Exception as e:
+                logger.error("Failed to download all images from SD cards: %s", str(e))
 
     def stop_scan(self):
         self._stop = True
+        # Optionally run cleanup here as well if you call from the UI
+
+if __name__ == "__main__":
+    # If '--cleanup' is passed, run cleanup only and exit
+    if "--cleanup" in sys.argv:
+        from turntable_control import TurntableController
+        try:
+            turntable = TurntableController()
+            turntable.cleanup()
+            print("Turntable cleanup completed.")
+        except Exception as e:
+            print(f"Error during turntable cleanup: {e}")
+        sys.exit(0)
+
+    # Load config for scan name & angle
+    if os.path.exists(CONFIG_PATH):
+        with open(CONFIG_PATH, "r") as f:
+            config = json.load(f)
+        label = config.get("scan_label", "object")
+        angle = float(config.get("angle_per_photo", 10))
+        step_delay = float(config.get("step_delay", 0.1))
+        photo_mode = config.get("photo_mode", "immediate")
+    else:
+        label = "object"
+        angle = 10
+        step_delay = 0.1
+        photo_mode = "immediate"
+
+    cameras, camera_map = load_camera_config()
+
+    ScanController(
+        angle_per_photo=angle,
+        cameras=cameras,
+        camera_map=camera_map,
+        delay=step_delay,
+        photo_mode=photo_mode
+    ).perform_scan(label=label)

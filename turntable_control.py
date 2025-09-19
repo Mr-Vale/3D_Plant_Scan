@@ -13,13 +13,13 @@ class TurntableController:
     def __init__(
         self,
         steps_per_rev=200,
-        microsteps=32,
+        microsteps=16,
         dir_pin=13,
         step_pin=19,
         enable_pin=12,
         mode_pins=(16, 17, 20),
         microstep_mode='softward',
-        microstep_format='1/32step',
+        microstep_format='1/16step',
         step_delay=0.005
     ):
         self.steps_per_rev = steps_per_rev
@@ -75,12 +75,12 @@ class TurntableController:
 
     def reset_position(self):
         """
-        Return the turntable to its starting position (absolute step 0).
+        Return the turntable to its starting position (absolute step 0), moving forward only.
         """
         if self.current_step != 0:
-            steps_to_move = -self.current_step
+            steps_to_move = (self.total_steps_per_rev - self.current_step) % self.total_steps_per_rev
             degrees_to_move = steps_to_move * (360.0 / self.total_steps_per_rev)
-            logger.info(f"Resetting position by moving {degrees_to_move} degrees ({steps_to_move} microsteps)")
+            logger.info(f"Resetting position by moving FORWARD {degrees_to_move} degrees ({steps_to_move} microsteps)")
             self.move_degrees(degrees_to_move)
 
     def get_position_degrees(self):

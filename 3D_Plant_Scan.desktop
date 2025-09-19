@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=3D Plant Scan UI
+Exec=python3 /home/plant3d-pi/3D_Plant_Scan/scan_ui.py
+Icon=/home/plant3d-pi/3D_Plant_Scan/cube_icon.png
+Path=/home/plant3d-pi/3D_Plant_Scan/
+Terminal=false

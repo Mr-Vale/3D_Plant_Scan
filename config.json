@@ -1,23 +1,19 @@
-{{
-  "scan_label": "my_plant_scan",
-  "angle_per_photo": 10,
+{
+  "scan_label": "test at 32",
+  "angle_per_photo": 90.0,
   "axes": {
-    "Z": "usb:001,007",
-    "Y": "usb:001,008"
-    // "Oblique": "usb:001,009" // Include only if assigned
+    "Z": "usb:001,008",
+    "Y": "None",
+    "Oblique": "None"
   },
   "cameras": [
     {
       "axis": "Z",
-      "port": "usb:001,007"
-    },
-    {
-      "axis": "Y",
       "port": "usb:001,008"
     }
-    // You can add up to 3 cameras here
   ],
-  "photos_per_camera": 36,            // 360 / angle_per_photo
-  "total_photos": 72,                 // photos_per_camera * number of cameras
-  "step_delay": 0.1                   // seconds between step/photo (for smooth motion)
+  "step_delay": 0.01,
+  "photos_per_camera": 4.0,
+  "total_photos": 4.0,
+  "photo_mode": "sdcard"
 }
