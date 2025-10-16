@@ -147,19 +147,17 @@ To add the application to your desktop/menu:
 
 ---
 
-## Updating Your Local Files (No Deletions)
+## ⚙️ How to Update
 
-Use the included update_repo.sh to pull the latest from GitHub and overlay files into your working directory without deleting extra local files:
-
-Examples:
-- sh update_repo.sh --repo https://github.com/Mr-Vale/3D_Plant_Scan.git --workdir ~/3D_Plant_Scan
-- sh update_repo.sh --repo https://github.com/Mr-Vale/Network_Logger.git --workdir ~/Network_Logger
-- sh update_repo.sh --repo https://github.com/Mr-Vale/RootBox-Software.git --workdir ~/RootBox
+1. SSH into the Pi or open a terminal
+2. CD to the correct directory 
+3. Run this command:
+   ```bash
+   update_repo.sh --repo https://github.com/Mr-Vale/RootBox-Software.git --workdir ~/RootBox
+   ```
 
 This will overwrite files that exist in the repo and add new ones, but it won’t remove unrelated local files.
 
-Tip: If you edited update_repo.sh on Windows and see $'\r' errors, convert to Unix line endings:
-- sed -i 's/\r$//' update_repo.sh
 
 ---
 
@@ -189,9 +187,3 @@ This project is licensed — see [LICENSE](LICENSE) for details.
 
 ---
 
-## Contributing
-
-Issues and pull requests are welcome. Please include:
-- Your environment (OS, Python version, hardware)
-- Clear reproduction steps
-- Logs or error messages (if applicable)
